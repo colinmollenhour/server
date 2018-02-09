@@ -16,12 +16,16 @@ INSERT INTO t2 VALUES (1,0), (2,0);
 --sync_with_master
 SET @old_isolation= @@GLOBAL.tx_isolation;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET @old_slave_transaction_retries=@@GLOBAL.slave_transaction_retries;
 --source include/stop_slave.inc
 SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='aggressive';
+# Considering the number of workers and conflicing transactions they do
+# the number of temporary failure retries can well exceed the default 10.
+SET @@GLOBAL.slave_transaction_retries= 5*@@GLOBAL.slave_parallel_threads;
 
 
 --echo *** Test that we replicate correctly when using READ COMMITTED and --log-slave-updates=0 on the slave ***
@@ -65,6 +69,7 @@ SELECT * FROM t2 ORDER BY a;
 SET GLOBAL tx_isolation= @old_isolation;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+SET GLOBAL slave_transaction_retries=@old_slave_transaction_retries;
 --source include/start_slave.inc
 
 --connection server_1
