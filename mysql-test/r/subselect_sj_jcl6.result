@@ -3109,7 +3109,9 @@ insert into t2 select b+10 from t2;
 insert into t2 select b+10 from t2;
 analyze table t1,t2;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 explain
 select a from t1, t2 where b between 1 and 2 and a in (select b from t2);
@@ -3416,7 +3418,7 @@ DROP TABLE t1,t2;
 set join_cache_level=default;
 show variables like 'join_cache_level';
 Variable_name	Value
-join_cache_level	2
+join_cache_level	4
 set @@optimizer_switch=@save_optimizer_switch_jcl6;
 set @optimizer_switch_for_subselect_sj_test=NULL;
 set @join_cache_level_subselect_sj_test=NULL;
