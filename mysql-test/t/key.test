@@ -219,6 +219,7 @@ explain select 1 from t1 where id =2;
 explain select 1 from t1 where id =2 or id=3;
 explain select name from t1 where id =2;
 ALTER TABLE t1 DROP PRIMARY KEY, ADD INDEX (id);
+
 explain select 1 from t1 where id =2;
 drop table t1;
 

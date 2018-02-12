@@ -297,7 +297,8 @@ insert into t0 values (1), (2), (3), (4), (5);
 create index i_p_size on part(p_size);
 
 set optimizer_switch='extended_keys=on';
-
+set @saved_join_cache_level= @@join_cache_level;
+set @@join_cache_level=2;
 explain
 select * from t0, part ignore index (primary)
   where p_partkey=t0.a and p_size=1;
@@ -305,6 +306,7 @@ select * from t0, part ignore index (primary)
 select * from t0,  part ignore index (primary)
   where p_partkey=t0.a and p_size=1;
 
+set @@join_cache_level=@saved_join_cache_level;
 drop table t0;
 drop index i_p_size on part; 
 
@@ -490,11 +492,14 @@ select
 from t1 A, t1 B;
 
 set optimizer_switch='extended_keys=off';
+set @saved_join_cache_level= @@join_cache_level;
+set @@join_cache_level= 2;
 explain 
 select * from t1, t2 where t2.a=t1.a and t2.b < 2;
 flush status;
 select * from t1, t2 where t2.a=t1.a and t2.b < 2;
 show status like 'handler_read%';
+
 
 set optimizer_switch='extended_keys=on';
 explain 
@@ -504,6 +509,7 @@ select * from t1, t2 where t2.a=t1.a and t2.b < 2;
 show status like 'handler_read%';
 
 drop table t1,t2;
+set @@join_cache_level= @saved_join_cache_level;
 
 # this test case did not demonstrate any regression
 # it is added for better testing
