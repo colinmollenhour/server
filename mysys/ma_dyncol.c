@@ -3822,11 +3822,11 @@ static
 my_bool dynstr_append_json_quoted(DYNAMIC_STRING *str,
                                   const char *append, size_t len)
 {
-  uint additional= ((str->alloc_increment && str->alloc_increment > 6) ?
+  size_t additional= ((str->alloc_increment && str->alloc_increment > 6) ?
                     str->alloc_increment :
                     10);
-  uint lim= additional;
-  uint i;
+  size_t lim= additional;
+  size_t i;
   if (dynstr_realloc(str, len + additional + 2))
     return TRUE;
   str->str[str->length++]= '"';
