@@ -693,43 +693,44 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
   return false;
 }
 
-inline
-void JOIN::vers_check_items()
+void vers_select_conds_t::print(String *str, enum_query_type query_type)
 {
-  Item_transformer transformer= &Item::vers_transformer;
-
-  if (conds)
+  const static LEX_CSTRING unit_type[]=
   {
-    Item *tmp = conds->transform(thd, transformer, NULL);
-    if (conds != tmp)
-      conds= tmp;
-  }
-
-  for (ORDER *ord= order; ord; ord= ord->next)
-  {
-    Item *tmp= (*ord->item)->transform(thd, transformer, NULL);
-    if (*ord->item != tmp)
-    {
-      ord->item_ptr= tmp;
-      *ord->item= ord->item_ptr;
-    }
-  }
-
-  for (ORDER *ord= group_list; ord; ord= ord->next)
-  {
-    Item *tmp= (*ord->item)->transform(thd, transformer, NULL);
-    if (*ord->item != tmp)
-    {
-      ord->item_ptr= tmp;
-      *ord->item= ord->item_ptr;
-    }
-  }
-
-  if (having)
-  {
-    Item *tmp= having->transform(thd, transformer, NULL);
-    if (having != tmp)
-      having= tmp;
+    { STRING_WITH_LEN("") },
+    { STRING_WITH_LEN("TIMESTAMP ") },
+    { STRING_WITH_LEN("TRANACTION ") }
+  };
+  switch (type) {
+  case SYSTEM_TIME_UNSPECIFIED:
+    break;
+  case SYSTEM_TIME_AS_OF:
+    str->append(STRING_WITH_LEN(" FOR SYSTEM_TIME AS OF "));
+    str->append(unit_type + unit_start);
+    start->print(str, query_type);
+    break;
+  case SYSTEM_TIME_FROM_TO:
+    str->append(STRING_WITH_LEN(" FOR SYSTEM_TIME FROM "));
+    str->append(unit_type + unit_start);
+    start->print(str, query_type);
+    str->append(STRING_WITH_LEN(" TO "));
+    str->append(unit_type + unit_end);
+    end->print(str, query_type);
+    break;
+  case SYSTEM_TIME_BETWEEN:
+    str->append(STRING_WITH_LEN(" FOR SYSTEM_TIME BETWEEN "));
+    str->append(unit_type + unit_start);
+    start->print(str, query_type);
+    str->append(STRING_WITH_LEN(" AND "));
+    str->append(unit_type + unit_end);
+    end->print(str, query_type);
+    break;
+  case SYSTEM_TIME_BEFORE:
+    DBUG_ASSERT(0);
+    break;
+  case SYSTEM_TIME_ALL:
+    str->append(" FOR SYSTEM_TIME ALL");
+    break;
   }
 }
 
@@ -746,6 +747,9 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     // statement is already prepared
     DBUG_RETURN(0);
   }
+
+  if (thd->lex->is_view_context_analysis())
+    DBUG_RETURN(0);
 
   if (!versioned_tables)
   {
@@ -1020,6 +1024,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
         DBUG_ASSERT(0);
       }
     }
+    vers_conditions.type= SYSTEM_TIME_ALL;
 
     if (cond1)
     {
@@ -1047,9 +1052,6 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
       this->where= *dst_cond;
       this->where->top_level_item();
     }
-
-    if (outer_table)
-      outer_table->vers_conditions.type= SYSTEM_TIME_ALL;
 
     // Invalidate current SP [#52, #422]
     if (thd->spcont)
@@ -1149,7 +1151,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   /*
     TRUE if the SELECT list mixes elements with and without grouping,
     and there is no GROUP BY clause. Mixing non-aggregated fields with
-    aggregate functions in the SELECT list is a MySQL exptenstion that
+    aggregate functions in the SELECT list is a MySQL extenstion that
     is allowed only if the ONLY_FULL_GROUP_BY sql mode is not set.
   */
   mixed_implicit_grouping= false;
@@ -1450,11 +1452,6 @@ JOIN::prepare(TABLE_LIST *tables_init,
 
   if (!procedure && result && result->prepare(fields_list, unit_arg))
     goto err;					/* purecov: inspected */
-
-  if (!thd->stmt_arena->is_stmt_prepare() && select_lex->versioned_tables > 0)
-  {
-    vers_check_items();
-  }
 
   unit= unit_arg;
   if (prepare_stage2())
@@ -4072,17 +4069,6 @@ void JOIN::exec_inner()
   result->send_result_set_metadata(
                  procedure ? procedure_fields_list : *fields,
                  Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
-
-  {
-    List_iterator<Item> it(*columns_list);
-    while (Item *item= it++)
-    {
-      Item_transformer transformer= &Item::vers_transformer;
-      Item *new_item= item->transform(thd, transformer, NULL);
-      if (new_item) // Item_default_value::transform() may return NULL
-        it.replace(new_item);
-    }
-  }
 
   error= do_select(this, procedure);
   /* Accumulate the counts from all join iterations of all join parts. */
@@ -23254,7 +23240,7 @@ setup_new_fields(THD *thd, List<Item> &fields,
   enum_resolution_type not_used;
   DBUG_ENTER("setup_new_fields");
 
-  thd->mark_used_columns= MARK_COLUMNS_READ;       // Not really needed, but...
+  thd->column_usage= MARK_COLUMNS_READ;       // Not really needed, but...
   for (; new_field ; new_field= new_field->next)
   {
     if ((item= find_item_in_list(*new_field->item, fields, &counter,
@@ -26092,10 +26078,8 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
     }
     if (table && table->versioned())
-    {
-      // versioning conditions are already unwrapped to WHERE clause
-      str->append(" FOR SYSTEM_TIME ALL");
-    }
+      vers_conditions.print(str, query_type);
+
     if (my_strcasecmp(table_alias_charset, cmp_name, alias.str))
     {
       char t_alias_buff[MAX_ALIAS_NAME];

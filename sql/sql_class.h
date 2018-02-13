@@ -92,8 +92,25 @@ enum enum_slave_run_triggers_for_rbr { SLAVE_RUN_TRIGGERS_FOR_RBR_NO,
                                        SLAVE_RUN_TRIGGERS_FOR_RBR_LOGGING};
 enum enum_slave_type_conversions { SLAVE_TYPE_CONVERSIONS_ALL_LOSSY,
                                    SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY};
-enum enum_mark_columns
-{ MARK_COLUMNS_NONE, MARK_COLUMNS_READ, MARK_COLUMNS_WRITE};
+
+/*
+  MARK_COLUMNS_READ:  A column is goind to be read.
+  MARK_COLUMNS_WRITE: A column is going to be written to.
+  MARK_COLUMNS_READ:  A column is goind to be read.
+                      A bit in read set is set to inform handler that the field
+                      is to be read. If field list contains duplicates, then
+                      thd->dup_field is set to point to the last found
+                      duplicate.
+  MARK_COLUMNS_WRITE: A column is going to be written to.
+                      A bit is set in write set to inform handler that it needs
+                      to update this field in write_row and update_row.
+*/
+enum enum_column_usage
+{ COLUMNS_READ, COLUMNS_WRITE, MARK_COLUMNS_READ, MARK_COLUMNS_WRITE};
+
+static inline bool should_mark_column(enum_column_usage column_usage)
+{ return column_usage >= MARK_COLUMNS_READ; }
+
 enum enum_filetype { FILETYPE_CSV, FILETYPE_XML };
 
 enum enum_binlog_row_image {
@@ -140,6 +157,7 @@ enum enum_binlog_row_image {
 #define MODE_NO_ENGINE_SUBSTITUTION     (1ULL << 30)
 #define MODE_PAD_CHAR_TO_FULL_LENGTH    (1ULL << 31)
 #define MODE_EMPTY_STRING_IS_NULL       (1ULL << 32)
+#define MODE_SIMULTANEOUS_ASSIGNMENT    (1ULL << 33)
 
 /* Bits for different old style modes */
 #define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	(1 << 0)
@@ -1075,18 +1093,7 @@ public:
   */
    ulong id;
 
-  /*
-    MARK_COLUMNS_NONE:  Means mark_used_colums is not set and no indicator to
-                        handler of fields used is set
-    MARK_COLUMNS_READ:  Means a bit in read set is set to inform handler
-	                that the field is to be read. If field list contains
-                        duplicates, then thd->dup_field is set to point
-                        to the last found duplicate.
-    MARK_COLUMNS_WRITE: Means a bit is set in write set to inform handler
-			that it needs to update this field in write_row
-                        and update_row.
-  */
-  enum enum_mark_columns mark_used_columns;
+  enum enum_column_usage column_usage;
 
   LEX_CSTRING name; /* name for named prepared statements */
   LEX *lex;                                     // parse tree descriptor
