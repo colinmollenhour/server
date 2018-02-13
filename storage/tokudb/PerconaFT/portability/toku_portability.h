@@ -54,6 +54,8 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #define DEV_NULL_FILE "/dev/null"
 
+#include <my_global.h>
+
 // include here, before they get deprecated
 #include <toku_atomic.h>
 
