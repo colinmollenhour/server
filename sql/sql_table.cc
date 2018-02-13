@@ -7869,6 +7869,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   List<Virtual_column_info> new_constraint_list;
   uint db_create_options= (table->s->db_create_options
                            & ~(HA_OPTION_PACK_RECORD));
+  Item::func_processor_rename column_rename_param;
   uint used_fields, dropped_sys_vers_fields= 0;
   KEY *key_info=table->key_info;
   bool rc= TRUE;
@@ -7920,6 +7921,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
   if (!(used_fields & HA_CREATE_USED_SEQUENCE))
     create_info->sequence= table->s->table_type == TABLE_TYPE_SEQUENCE;
+
+  column_rename_param.db_name=       table->s->db;
+  column_rename_param.table_name=    table->s->table_name;
+  if (column_rename_param.fields.copy(&alter_info->create_list, thd->mem_root))
+    DBUG_RETURN(1);                             // OOM
 
   restore_record(table, s->default_values);     // Empty record for DEFAULT
 
@@ -7975,6 +7981,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       bitmap_set_bit(dropped_fields, field->field_index);
       continue;
     }
+
     /* invisible versioning column is dropped automatically on DROP SYSTEM VERSIONING */
     if (!drop && field->invisible >= INVISIBLE_SYSTEM &&
         field->flags & VERS_SYSTEM_FIELD &&
@@ -7984,6 +7991,24 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         (void) delete_statistics_for_column(thd, table, field);
       continue;
     }
+
+    /*
+      If we are doing a rename of a column, update all references in virtual
+      column expressions, constraints and defaults to use the new column name
+    */
+    if (alter_info->flags & Alter_info::ALTER_RENAME_COLUMN)
+    {
+      if (field->vcol_info)
+        field->vcol_info->expr->walk(&Item::rename_fields_processor, 1,
+                                     &column_rename_param);
+      if (field->check_constraint)
+        field->check_constraint->expr->walk(&Item::rename_fields_processor, 1,
+                                            &column_rename_param);
+      if (field->default_value)
+        field->default_value->expr->walk(&Item::rename_fields_processor, 1,
+                                         &column_rename_param);
+    }
+
     /* Check if field is changed */
     def_it.rewind();
     while ((def=def_it++))
@@ -8444,7 +8469,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
       }
       if (!drop)
+      {
+        check->expr->walk(&Item::rename_fields_processor, 1, &column_rename_param);
         new_constraint_list.push_back(check, thd->mem_root);
+      }
     }
   }
   /* Add new constraints */

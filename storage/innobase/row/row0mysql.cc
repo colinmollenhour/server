@@ -4844,6 +4844,8 @@ end:
 					DICT_ERR_IGNORE_NONE);
 			fk_tables.pop_front();
 		}
+
+		table->data_dir_path= NULL;
 	}
 
 funct_exit:

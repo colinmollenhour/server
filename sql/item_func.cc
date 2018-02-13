@@ -2705,7 +2705,7 @@ bool Item_func_min_max::get_date_native(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 
   for (uint i=0; i < arg_count ; i++)
   {
-    longlong res= args[i]->val_temporal_packed(Item_func_min_max::field_type());
+    longlong res= args[i]->val_datetime_packed();
 
     /* Check if we need to stop (because of error or KILL) and stop the loop */
     if (args[i]->null_value)
@@ -2721,21 +2721,35 @@ bool Item_func_min_max::get_date_native(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     ltime->time_type= MYSQL_TIMESTAMP_DATE;
     ltime->hour= ltime->minute= ltime->second= ltime->second_part= 0;
   }
-  else if (Item_func_min_max::field_type() == MYSQL_TYPE_TIME)
-  {
-    ltime->time_type= MYSQL_TIMESTAMP_TIME;
-    ltime->hour+= (ltime->month * 32 + ltime->day) * 24;
-    ltime->year= ltime->month= ltime->day= 0;
-    if (adjust_time_range_with_warn(ltime,
-                                    MY_MIN(decimals, TIME_SECOND_PART_DIGITS)))
-      return (null_value= true);
-  }
 
   if (!(fuzzy_date & TIME_TIME_ONLY) &&
       ((null_value= check_date_with_warn(ltime, fuzzy_date,
                                          MYSQL_TIMESTAMP_ERROR))))
     return true;
 
+  return (null_value= 0);
+}
+
+
+bool Item_func_min_max::get_time_native(MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(fixed == 1);
+
+  Time value(args[0]);
+  if (!value.is_valid_time())
+    return (null_value= true);
+
+  for (uint i= 1; i < arg_count ; i++)
+  {
+    Time tmp(args[i]);
+    if (!tmp.is_valid_time())
+      return (null_value= true);
+
+    int cmp= value.cmp(&tmp);
+    if ((cmp_sign < 0 ? cmp : -cmp) < 0)
+      value= tmp;
+  }
+  value.copy_to_mysql_time(ltime);
   return (null_value= 0);
 }
 
