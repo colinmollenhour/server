@@ -2247,6 +2247,7 @@ files_checked:
 			/* mariabackup --prepare only deals with
 			the redo log and the data files, not with
 			transactions or the data dictionary. */
+			trx_sys_init_binlog_pos();
 			break;
 		}
 
