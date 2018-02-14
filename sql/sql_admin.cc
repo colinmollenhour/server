@@ -1041,7 +1041,7 @@ send_result_message:
         if (!thd->open_temporary_tables(table) &&
             (table->table= open_ltable(thd, table, lock_type, 0)))
         {
-          uint save_flags;
+          ulonglong save_flags;
           /* Store the original value of alter_info->flags */
           save_flags= alter_info->flags;
 

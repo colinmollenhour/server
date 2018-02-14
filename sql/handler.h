@@ -1249,7 +1249,7 @@ struct handlerton
    bool (*flush_logs)(handlerton *hton);
    bool (*show_status)(handlerton *hton, THD *thd, stat_print_fn *print, enum ha_stat_type stat);
    uint (*partition_flags)();
-   uint (*alter_table_flags)(uint flags);
+   ulonglong (*alter_table_flags)(ulonglong flags);
    int (*alter_tablespace)(handlerton *hton, THD *thd, st_alter_tablespace *ts_info);
    int (*fill_is_table)(handlerton *hton, THD *thd, TABLE_LIST *tables, 
                         class Item *cond, 
@@ -4261,7 +4261,7 @@ public:
     but we don't have a primary key
   */
   virtual void use_hidden_primary_key();
-  virtual uint alter_table_flags(uint flags)
+  virtual ulonglong alter_table_flags(ulonglong flags)
   {
     if (ht->alter_table_flags)
       return ht->alter_table_flags(flags);
