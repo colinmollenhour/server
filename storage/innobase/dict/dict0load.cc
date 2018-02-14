@@ -3047,9 +3047,13 @@ err_exit:
 		}
 	}
 
-	if (err == DB_SUCCESS && cached && table->is_readable()
-	    && table->supports_instant()) {
-		err = btr_cur_instant_init(table);
+	if (err == DB_SUCCESS && cached && table->is_readable()) {
+		if (table->space && !fil_space_get_size(table->space)) {
+			table->corrupted = true;
+			table->file_unreadable = true;
+		} else if (table->supports_instant()) {
+			err = btr_cur_instant_init(table);
+		}
 	}
 
 	/* Initialize table foreign_child value. Its value could be
@@ -3078,12 +3082,6 @@ err_exit:
 		} else {
 			dict_mem_table_fill_foreign_vcol_set(table);
 			table->fk_max_recusive_level = 0;
-
-			if (table->space
-			    && !fil_space_get_size(table->space)) {
-				table->corrupted = true;
-				table->file_unreadable = true;
-			}
 		}
 	} else {
 		dict_index_t*   index;
