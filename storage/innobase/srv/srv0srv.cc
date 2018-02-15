@@ -2590,7 +2590,7 @@ DECLARE_THREAD(srv_worker_thread)(
 
 	ut_a(srv_n_purge_threads > 1);
 	ut_a(my_atomic_loadlint(&srv_sys.n_threads_active[SRV_WORKER])
-	     < static_cast<lint>(srv_n_purge_threads));
+	     < srv_n_purge_threads);
 
 	/* We need to ensure that the worker threads exit after the
 	purge coordinator thread. Otherwise the purge coordinator can
